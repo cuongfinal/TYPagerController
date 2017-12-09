@@ -380,8 +380,8 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     
     // 3.layout content
     if (_curIndex < 0 || needLayoutSubViews) {
-        [self scrollViewDidScroll:_scrollView];
-    }else {
+         [_delegate pagerViewLayout:self transitionFromIndex:0 toIndex:1 animated:_scrollAnimated];    }
+    else {
         [self layoutIfNeed];
     }
 }
@@ -620,12 +620,31 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
         return;
     }
     
-    NSInteger fromIndex = MAX(_curIndex, 0);
-    _curIndex = index;
-    if (_delegateFlags.transitionFromIndexToIndex /*&& ![self progressCaculateEnable]*/) {
-        [_delegate pagerViewLayout:self transitionFromIndex:fromIndex toIndex:_curIndex animated:_scrollAnimated];
+    CGFloat fullScrollContentOffset = width * (_countOfPagerItems - 1);
+    if(offsetX == 0){
+        index = _countOfPagerItems - 2;
+        _curIndex = index;
+        if (_delegateFlags.transitionFromIndexToIndex /*&& ![self progressCaculateEnable]*/) {
+            [_delegate pagerViewLayout:self transitionFromIndex:0 toIndex:_curIndex animated:NO];
+        }
+        [_scrollView setContentOffset:CGPointMake(index * CGRectGetWidth(_scrollView.frame),0) animated:NO];
+        return;
+    }else if (offsetX == fullScrollContentOffset){
+        index = 1;
+        _curIndex = index;
+        if (_delegateFlags.transitionFromIndexToIndex /*&& ![self progressCaculateEnable]*/) {
+            [_delegate pagerViewLayout:self transitionFromIndex:_countOfPagerItems-2 toIndex:_curIndex animated:NO];
+        }
+        [_scrollView setContentOffset:CGPointMake(index * CGRectGetWidth(_scrollView.frame),0) animated:NO];
     }
-    _scrollAnimated = YES;
+    else{
+        NSInteger fromIndex = MAX(_curIndex, 0);
+        _curIndex = index;
+        if (_delegateFlags.transitionFromIndexToIndex /*&& ![self progressCaculateEnable]*/) {
+            [_delegate pagerViewLayout:self transitionFromIndex:fromIndex toIndex:_curIndex animated:_scrollAnimated];
+        }
+    }
+     _scrollAnimated = YES;
 }
 
 - (void)caculateIndexByProgressWithOffsetX:(CGFloat)offsetX direction:(TYPagerScrollingDirection)direction{

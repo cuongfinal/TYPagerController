@@ -44,7 +44,14 @@
     for (NSInteger i = 0; i < numPage; ++i) {
         [datas addObject:i%2 == 0 ? [NSString stringWithFormat:@"Tab %ld",i]:[NSString stringWithFormat:@"Tab Tab %ld",i]];
     }
-    _datas = [datas copy];
+    id firstItem = datas[0];
+    id lastItem = [datas lastObject];
+    
+    NSMutableArray *copyDatas = [datas mutableCopy];
+    
+    [copyDatas insertObject:lastItem atIndex:0];
+    [copyDatas addObject:firstItem];
+    _datas = [NSArray arrayWithArray:copyDatas];
     
     [self reloadData];
     [self scrollToControllerAtIndex:1 animate:YES];
