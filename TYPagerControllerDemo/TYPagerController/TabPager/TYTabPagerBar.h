@@ -41,7 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface TYTabPagerBar : UIView
+@interface TYTabPagerBar : UIView <UIGestureRecognizerDelegate>
 
 @property (nonatomic, weak, readonly) UICollectionView *collectionView;
 @property (nonatomic, strong) UIView *progressView;

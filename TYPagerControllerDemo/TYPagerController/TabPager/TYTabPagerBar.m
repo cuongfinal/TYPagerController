@@ -28,7 +28,6 @@
 
 @property (nonatomic, assign) BOOL isFirstLayout;
 @property (nonatomic, assign) BOOL didLayoutSubViews;
-
 @end
 
 @implementation TYTabPagerBar
@@ -38,6 +37,7 @@
         _isFirstLayout = YES;
         _didLayoutSubViews = NO;
         _autoScrollItemToCenter = YES;
+        _curIndex = 1;
         self.backgroundColor = [UIColor clearColor];
         [self addFixAutoAdjustInsetScrollView];
         [self addCollectionView];
@@ -51,6 +51,7 @@
         _isFirstLayout = YES;
         _didLayoutSubViews = NO;
         _autoScrollItemToCenter = YES;
+        _curIndex = 1;
         self.backgroundColor = [UIColor clearColor];
         [self addFixAutoAdjustInsetScrollView];
         [self addCollectionView];
@@ -71,15 +72,54 @@
     collectionView.backgroundColor = [UIColor clearColor];
     collectionView.showsHorizontalScrollIndicator = NO;
     collectionView.showsVerticalScrollIndicator = NO;
+    collectionView.scrollEnabled = NO;
     if ([collectionView respondsToSelector:@selector(setPrefetchingEnabled:)]) {
         collectionView.prefetchingEnabled = NO;
     }
     collectionView.delegate = self;
     collectionView.dataSource = self;
+    
+    
+    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(didSwipeRight:)];
+    swipeRight.delegate = self;
+    [swipeRight setDirection:UISwipeGestureRecognizerDirectionRight];
+    [collectionView addGestureRecognizer:swipeRight];
+    
+    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(didSwipeLeft:)];
+    swipeLeft.delegate = self;
+    [swipeLeft setDirection:UISwipeGestureRecognizerDirectionLeft];
+    [collectionView addGestureRecognizer:swipeLeft];
+    
     [self addSubview:collectionView];
     _collectionView = collectionView;
+    
+
+}
+#pragma mark - UISwipeGestureRecognizer Action
+-(void)didSwipeRight: (UISwipeGestureRecognizer*) recognizer {
+    NSLog(@"Swiped Right");
+    NSInteger fromIndex = _curIndex;
+    NSInteger toIndex = _curIndex - 1;
+    if(fromIndex == 1){
+        toIndex = _countOfItems - 2;
+        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
+    }else{
+        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
+    }
 }
 
+-(void)didSwipeLeft: (UISwipeGestureRecognizer*) recognizer {
+    NSLog(@"Swiped Left");
+    NSInteger fromIndex = _curIndex;
+    NSInteger toIndex = _curIndex + 1;
+    if(fromIndex == _countOfItems - 2){
+        toIndex = 1;
+        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
+    }else{
+        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
+    }
+
+}
 - (void)addUnderLineView {
      UIView *progressView = [[UIView alloc]init];
     progressView.backgroundColor = [UIColor redColor];
