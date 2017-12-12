@@ -103,8 +103,10 @@
     if(fromIndex == 1){
         toIndex = _countOfItems - 2;
         [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
+        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
     }else{
         [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
+        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
     }
 }
 
@@ -115,8 +117,10 @@
     if(fromIndex == _countOfItems - 2){
         toIndex = 1;
         [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
+        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
     }else{
         [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
+        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
     }
 
 }
