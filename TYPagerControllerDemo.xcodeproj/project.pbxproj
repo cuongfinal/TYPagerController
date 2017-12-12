@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		266ACD881FDFD8F800556926 /* InfiniteHorizontalLayout.m in Sources */ = {isa = PBXBuildFile; fileRef = 266ACD861FDFD8F800556926 /* InfiniteHorizontalLayout.m */; };
 		2B0D5BBC1F15FD1F00A4B8B1 /* CollectionViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D5BB71F15FD1F00A4B8B1 /* CollectionViewController.m */; };
 		2B0D5BBD1F15FD1F00A4B8B1 /* CustomViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D5BB91F15FD1F00A4B8B1 /* CustomViewController.m */; };
 		2B0D5BC11F15FD5100A4B8B1 /* ListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D5BC01F15FD5100A4B8B1 /* ListViewController.m */; };
@@ -31,6 +32,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		266ACD861FDFD8F800556926 /* InfiniteHorizontalLayout.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = InfiniteHorizontalLayout.m; path = TYPagerControllerDemo/InfiniteHorizontalLayout.m; sourceTree = SOURCE_ROOT; };
+		266ACD871FDFD8F800556926 /* InfiniteHorizontalLayout.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = InfiniteHorizontalLayout.h; path = TYPagerControllerDemo/InfiniteHorizontalLayout.h; sourceTree = SOURCE_ROOT; };
 		2B0D5BB61F15FD1F00A4B8B1 /* CollectionViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CollectionViewController.h; sourceTree = "<group>"; };
 		2B0D5BB71F15FD1F00A4B8B1 /* CollectionViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CollectionViewController.m; sourceTree = "<group>"; };
 		2B0D5BB81F15FD1F00A4B8B1 /* CustomViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CustomViewController.h; sourceTree = "<group>"; };
@@ -142,6 +145,8 @@
 		B072EBF51F1E37B100736A2E /* TYPagerController */ = {
 			isa = PBXGroup;
 			children = (
+				266ACD871FDFD8F800556926 /* InfiniteHorizontalLayout.h */,
+				266ACD861FDFD8F800556926 /* InfiniteHorizontalLayout.m */,
 				B072EC051F1E37B100736A2E /* TYPagerViewLayout.h */,
 				B072EC061F1E37B100736A2E /* TYPagerViewLayout.m */,
 				B072EC031F1E37B100736A2E /* TYPagerView.h */,
@@ -250,6 +255,7 @@
 				B072EC0A1F1E37B100736A2E /* TYTabPagerController.m in Sources */,
 				B072EC081F1E37B100736A2E /* TYTabPagerBarCell.m in Sources */,
 				B0284FE11F1E595D00C733E6 /* TabPagerControllerDemoController.m in Sources */,
+				266ACD881FDFD8F800556926 /* InfiniteHorizontalLayout.m in Sources */,
 				B072EC0B1F1E37B100736A2E /* TYTabPagerView.m in Sources */,
 				2B0D5BC11F15FD5100A4B8B1 /* ListViewController.m in Sources */,
 				B072EC0E1F1E37B100736A2E /* TYPagerViewLayout.m in Sources */,

@@ -8,7 +8,7 @@
 
 #import <UIKit/UIKit.h>
 #import "TYTabPagerBarLayout.h"
-
+#import "InfiniteHorizontalLayout.h"
 NS_ASSUME_NONNULL_BEGIN
 
 @class TYTabPagerBar;

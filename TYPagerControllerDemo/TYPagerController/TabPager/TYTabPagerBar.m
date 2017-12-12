@@ -66,64 +66,23 @@
 }
 
 - (void)addCollectionView {
-    UICollectionViewFlowLayout *layout = [[UICollectionViewFlowLayout alloc]init];
+    UICollectionViewFlowLayout *layout = [[InfiniteHorizontalLayout alloc]init];
     layout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
     UICollectionView *collectionView = [[UICollectionView alloc]initWithFrame:UIEdgeInsetsInsetRect(self.bounds, _contentInset) collectionViewLayout:layout];
     collectionView.backgroundColor = [UIColor clearColor];
     collectionView.showsHorizontalScrollIndicator = NO;
     collectionView.showsVerticalScrollIndicator = NO;
-    collectionView.scrollEnabled = NO;
+    collectionView.scrollEnabled = YES;
     if ([collectionView respondsToSelector:@selector(setPrefetchingEnabled:)]) {
         collectionView.prefetchingEnabled = NO;
     }
     collectionView.delegate = self;
     collectionView.dataSource = self;
     
-    
-    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(didSwipeRight:)];
-    swipeRight.delegate = self;
-    [swipeRight setDirection:UISwipeGestureRecognizerDirectionRight];
-    [collectionView addGestureRecognizer:swipeRight];
-    
-    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(didSwipeLeft:)];
-    swipeLeft.delegate = self;
-    [swipeLeft setDirection:UISwipeGestureRecognizerDirectionLeft];
-    [collectionView addGestureRecognizer:swipeLeft];
-    
     [self addSubview:collectionView];
     _collectionView = collectionView;
-    
-
 }
 #pragma mark - UISwipeGestureRecognizer Action
--(void)didSwipeRight: (UISwipeGestureRecognizer*) recognizer {
-    NSLog(@"Swiped Right");
-    NSInteger fromIndex = _curIndex;
-    NSInteger toIndex = _curIndex - 1;
-    if(fromIndex == 1){
-        toIndex = _countOfItems - 2;
-        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
-        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
-    }else{
-        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
-        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
-    }
-}
-
--(void)didSwipeLeft: (UISwipeGestureRecognizer*) recognizer {
-    NSLog(@"Swiped Left");
-    NSInteger fromIndex = _curIndex;
-    NSInteger toIndex = _curIndex + 1;
-    if(fromIndex == _countOfItems - 2){
-        toIndex = 1;
-        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:NO];
-        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
-    }else{
-        [self scrollToItemFromIndex:fromIndex toIndex:toIndex animate:YES];
-        [_delegate pagerTabBar:self didSelectItemAtIndex:toIndex];
-    }
-
-}
 - (void)addUnderLineView {
      UIView *progressView = [[UIView alloc]init];
     progressView.backgroundColor = [UIColor redColor];
@@ -282,6 +241,13 @@
 
 #pragma mark - UICollectionViewDelegateFlowLayout
 
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+    if ([self.collectionView.collectionViewLayout isKindOfClass:[InfiniteHorizontalLayout class]]) {
+        InfiniteHorizontalLayout *layout = (InfiniteHorizontalLayout *)self.collectionView.collectionViewLayout;
+        [layout recenterLayoutIfNeeded];
+    }
+}
 - (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath
 {
     if ([_delegate respondsToSelector:@selector(pagerTabBar:didSelectItemAtIndex:)]) {
