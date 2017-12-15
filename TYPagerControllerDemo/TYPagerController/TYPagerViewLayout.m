@@ -125,6 +125,7 @@ static const NSInteger kMemoryCountLimit = 16;
 
 @property (nonatomic, strong) NSDictionary<NSNumber *,ItemType> *visibleIndexItems;
 @property (nonatomic, strong) NSDictionary<NSNumber *,ItemType> *prefetchIndexItems;
+@property (nonatomic, strong) NSDictionary<NSNumber *,ItemType> *allItems;
 
 //reuse Class and nib
 @property (nonatomic, strong) NSMutableDictionary *reuseIdentifyClassOrNib;
@@ -147,8 +148,6 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
         [self configurePropertys];
         
         [self configureScrollView];
-        
-        [self addScrollViewObservers];
     }
     return self;
 }
@@ -156,7 +155,9 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
 #pragma mark - configure
 
 - (void)configurePropertys {
-    _curIndex = -1;
+    _scrollView.contentSize =  CGSizeMake(_scrollView.frame.size.width * 2,
+                                          _scrollView.contentSize.height);
+    _curIndex = NSNotFound;
     _preOffsetX = 0;
     _changeIndexWhenScrollProgress = 0.5;
     _didLayoutSubViews = NO;
@@ -177,10 +178,7 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
 }
 
 - (void)resetPropertys {
-    [self clearMemoryCache];
-    [self removeVisibleItems];
     _scrollAnimated = NO;
-    _curIndex = -1;
     _preOffsetX = 0;
 }
 
@@ -208,22 +206,6 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     return _reuseIdentifyClassOrNib;
 }
 
-- (NSCache *)memoryCache {
-    if (!_memoryCache) {
-        _memoryCache = [[TYAutoPurgeCache alloc]init];
-        _memoryCache.countLimit = kMemoryCountLimit;
-    }
-    return _memoryCache;
-}
-
-- (void)setAutoMemoryCache:(BOOL)autoMemoryCache {
-    _autoMemoryCache = autoMemoryCache;
-    if(!_autoMemoryCache && _memoryCache){
-        [_memoryCache removeAllObjects];
-        _memoryCache = nil;
-    }
-}
-
 - (void)setPrefetchItemCount:(NSInteger)prefetchItemCount {
     _prefetchItemCount = prefetchItemCount;
     if (prefetchItemCount <= 0 && _prefetchIndexItems) {
@@ -248,14 +230,12 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
 
 - (void)reloadData {
     [self resetPropertys];
-    
     [self updateData];
 }
 
-// update don't reset propertys(curIndex)
 - (void)updateData {
-    [self clearMemoryCache];
     _countOfPagerItems = [_dataSource numberOfItemsInPagerViewLayout];
+    [self loadAllController];
     [self setNeedLayout];
 }
 
@@ -272,23 +252,8 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     }
     
     [self scrollViewWillScrollToView:_scrollView animate:animate];
-    [_scrollView setContentOffset:CGPointMake(index * CGRectGetWidth(_scrollView.frame),0) animated:NO];
+    [_scrollView setContentOffset:CGPointMake((index + 1) * CGRectGetWidth(_scrollView.frame),0) animated:NO];
     [self scrollViewDidScrollToView:_scrollView animate:animate];
-}
-
-- (id)itemForIndex:(NSInteger)idx {
-    NSNumber *index = @(idx);
-    // 1.from visibleViews
-    id visibleItem = [_visibleIndexItems objectForKey:index];
-    if (!visibleItem && _prefetchItemCount > 0) {
-        // 2.from prefetch
-        visibleItem = [_prefetchIndexItems objectForKey:index];
-    }
-    if (!visibleItem) {
-        // 3.from cache
-        visibleItem = [self cacheItemForKey:index];
-    }
-    return visibleItem;
 }
 
 - (UIView *)viewForItem:(id)item atIndex:(NSInteger)index {
@@ -363,9 +328,6 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
         _countOfPagerItems = [_dataSource numberOfItemsInPagerViewLayout];
     }
     _needLayoutContent = YES;
-    if (_curIndex >= _countOfPagerItems) {
-        _curIndex = _countOfPagerItems - 1;
-    }
     
     BOOL needLayoutSubViews = NO;
     if (!_didLayoutSubViews && !CGRectIsEmpty(_scrollView.frame) && _firstScrollToIndex < _countOfPagerItems) {
@@ -375,213 +337,45 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     
     // 2.set contentSize and offset
     CGFloat contentWidth = CGRectGetWidth(_scrollView.frame);
-    _scrollView.contentSize = CGSizeMake(_countOfPagerItems * contentWidth, 0);
-    _scrollView.contentOffset = CGPointMake(MAX(needLayoutSubViews ? _firstScrollToIndex : _curIndex, 0)*contentWidth, _scrollView.contentOffset.y);
-    
-    // 3.layout content
-    if (_curIndex < 0 || needLayoutSubViews) {
-         [_delegate pagerViewLayout:self transitionFromIndex:0 toIndex:1 animated:_scrollAnimated];    }
-    else {
-        [self layoutIfNeed];
-    }
+    _scrollView.contentSize = CGSizeMake(contentWidth * (_countOfPagerItems + 2), _scrollView.contentSize.height);
+    _scrollView.contentOffset = [self createPoint:contentWidth * 2];;
+    [self layoutIfNeed:0];
 }
-
-- (void)layoutIfNeed {
+- (CGPoint) createPoint:(CGFloat) size {
+        return CGPointMake(size, 0);
+}
+- (void)layoutIfNeed:(NSInteger)index {
     if (CGRectIsEmpty(_scrollView.frame)) {
         return;
     }
-    // 1.caculate visible range
-    CGFloat offsetX = _scrollView.contentOffset.x;
-    NSRange visibleRange = visibleRangWithOffset(offsetX, CGRectGetWidth(_scrollView.frame), _countOfPagerItems);
-    if (NSEqualRanges(_visibleRange, visibleRange) && !_needLayoutContent) {
-        // visible range not change
-        return;
-    }
-    _visibleRange = visibleRange;
+    if (index == _curIndex) return;
+    _curIndex = index;
     _needLayoutContent = NO;
     
-    BOOL afterPrefetchIfNoVisibleItems = !_visibleIndexItems;
-    if (!afterPrefetchIfNoVisibleItems) {
-        // 2.prefetch left and right Items
-        [self addPrefetchItemsOutOfVisibleRange:_visibleRange];
-    }
-    // 3.remove invisible Items
-    [self removeVisibleItemsOutOfVisibleRange:_visibleRange];
-    // 4.add visiible Items
-    [self addVisibleItemsInVisibleRange:_visibleRange];
-    if (afterPrefetchIfNoVisibleItems) {
-        [self addPrefetchItemsOutOfVisibleRange:_visibleRange];
-    }
-}
-
-#pragma mark - remove && add visibleViews
-
-- (void)removeVisibleItems {
-    [_scrollView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-    _visibleIndexItems = nil;
-    _prefetchIndexItems = nil;
-    if (_reuseIdentifyItems) {
-        [_reuseIdentifyItems removeAllObjects];
-    }
-}
-
-- (void)removeVisibleItemsOutOfVisibleRange:(NSRange)visibleRange {
-    [_visibleIndexItems enumerateKeysAndObjectsUsingBlock:^(NSNumber *key, id item, BOOL * stop) {
-        NSInteger index = [key integerValue];
-        if (!NSLocationInRange(index, visibleRange)) {
-            // out of visible
-            [self removeInvisibleItem:item atIndex:index];
-        }
-    }];
-}
-
-- (void)removeInvisibleItem:(id)invisibleItem atIndex:(NSInteger)index{
-    UIView *invisibleView = [self viewForItem:invisibleItem atIndex:index];
-    if (!invisibleView.superview) {
-        return;
-    }
-    if (_dataSourceFlags.removeInVisibleItem) {
-        [_dataSource pagerViewLayout:self removeInVisibleItem:invisibleItem atIndex:index];
-    }else {
-        NSAssert(NO, @"must implememt datasource pagerViewLayout:removeInVisibleItem:atIndex:!");
-    }
+    NSInteger prevPage = [self pageIndexByAdding:-1 from:_curIndex];
+    NSInteger nextPage = [self pageIndexByAdding:+1 from:_curIndex];
     
-    NSObject *reuseItem = invisibleItem;
-    if (_reuseIdentifyClassOrNib.count > 0 && reuseItem.ty_pagerReuseIdentify.length > 0) {
-        // reuse
-        [self enqueueReusableItem:reuseItem prefetchRange:_prefetchRange atIndex:index];
-    }else {
-        [self cacheItem:invisibleItem forKey:@(index)];
-    }
-}
-
-- (void)addVisibleItemsInVisibleRange:(NSRange)visibleRange {
-    NSMutableDictionary *visibleIndexItems = [NSMutableDictionary dictionary];
-    // add visible views
-    for (NSInteger idx = visibleRange.location ; idx < visibleRange.location + visibleRange.length; ++idx) {
-        // from visibleViews,prefetch,cache
-        id visibleItem  = [self itemForIndex:idx];
-        if (!visibleItem && (!_addVisibleItemOnlyWhenScrollAnimatedEnd || visibleRange.length == 1)) {
-            // ↑↑↑ if _addVisibleItemOnlyWhenScrollAnimatedEnd is NO ,scroll visible range change will add item from dataSource, else is YES only scroll animate end(visibleRange.length == 1) will add item from dataSource
-            visibleItem = [_dataSource pagerViewLayout:self itemForIndex:idx prefetching:NO];
-        }
-        if (visibleItem) {
-            [self addVisibleItem:visibleItem atIndex:idx];
-            visibleIndexItems[@(idx)] = visibleItem;
-        }
-    }
+    [self removeControllerInScrollView];
+    [self loadControllerAtIndex:_curIndex andPlaceAtIndex:0];
+    // Pre-load the content for the adjacent pages if multiple pages are to be displayed
+    [self loadControllerAtIndex:prevPage andPlaceAtIndex:-1];   // load previous page
+    [self loadControllerAtIndex:nextPage andPlaceAtIndex:1];   // load next page
     
-    if (visibleIndexItems.count > 0) {
-        _visibleIndexItems = [visibleIndexItems copy];
-    }else {
-        _visibleIndexItems = nil;
-    }
+    CGFloat size = _scrollView.frame.size.width;
+    _scrollView.contentOffset = [self createPoint:size * 2]; // recenter
 }
 
-- (void)addVisibleItem:(id)visibleItem atIndex:(NSInteger)index{
-    if (!visibleItem) {
-        NSAssert(visibleItem != nil, @"visibleView must not nil!");
-        return;
-    }
-    UIView *view = [self viewForItem:visibleItem atIndex:index];
-    if (view.superview && view.superview != _scrollView) {
-        [view removeFromSuperview];
-    }
-    CGRect frame = [self frameForItemAtIndex:index];
-    if (!CGRectEqualToRect(view.frame, frame)) {
-        view.frame = frame;
-    }
-    if (view.superview) {
-        return;
-    }
-    
-    if (_dataSourceFlags.addVisibleItem) {
-        [_dataSource pagerViewLayout:self addVisibleItem:visibleItem atIndex:index];
-    }else {
-        NSAssert(NO, @"must implement datasource pagerViewLayout:addVisibleItem:frame:atIndex:!");
-    }
-}
-
-- (void)addPrefetchItemsOutOfVisibleRange:(NSRange)visibleRange{
-    if (_prefetchItemCount <= 0) {
-        return;
-    }
-    NSRange prefetchRange = prefetchRangeWithVisibleRange(visibleRange, _prefetchItemCount, _countOfPagerItems);
-    if (visibleRange.length == 1) {
-        // ↑↑↑mean: scroll animate end
-        NSMutableDictionary *prefetchIndexItems = [NSMutableDictionary dictionary];
-        // add prefetch items
-        for (NSInteger index = prefetchRange.location; index < NSMaxRange(prefetchRange); ++index) {
-            id prefetchItem = nil;
-            if (NSLocationInRange(index, visibleRange)) {
-                prefetchItem = [_visibleIndexItems objectForKey:@(index)];
-            }else {
-                prefetchItem = [self prefetchInvisibleItemAtIndex:index];
-            }
-            if (prefetchItem) {
-                [prefetchIndexItems setObject:prefetchItem forKey:@(index)];
-            }
-        }
-        
-        BOOL haveReuseIdentifyClassOrNib = _reuseIdentifyClassOrNib.count > 0;
-        if (haveReuseIdentifyClassOrNib || _prefetchItemWillAddToSuperView) {
-            [_prefetchIndexItems enumerateKeysAndObjectsUsingBlock:^(NSNumber * key, id obj, BOOL * stop) {
-                NSInteger index = [key integerValue];
-                if (haveReuseIdentifyClassOrNib) {
-                    // resuse item
-                    [self enqueueReusableItem:obj prefetchRange:prefetchRange atIndex:index];
-                }
-                if (_prefetchItemWillAddToSuperView && !NSLocationInRange(index, prefetchRange)) {
-                    // remove prefetch item to superView
-                    UIView *view = [self viewForItem:obj atIndex:index];
-                    if (view.superview == _scrollView) {
-                        [view removeFromSuperview];
-                    }
-                }
-            }];
-        }
-        if (prefetchIndexItems.count > 0) {
-            _prefetchRange = prefetchRange;
-            _prefetchIndexItems = [prefetchIndexItems copy];
-        }else {
-            _prefetchRange = NSMakeRange(0, 0);
-            _prefetchIndexItems = nil;
-        }
-    }else if (NSIntersectionRange(visibleRange, _prefetchRange).length == 0) {
-        // visible and prefetch intersection, remove all prefetchItems
-        if (_prefetchItemWillAddToSuperView) {
-            [_prefetchIndexItems enumerateKeysAndObjectsUsingBlock:^(NSNumber *key, id obj, BOOL *stop) {
-                UIView *view = [self viewForItem:obj atIndex:[key integerValue]];
-                if (view.superview == _scrollView) {
-                    [view removeFromSuperview];
-                }
-            }];
-        }
-        _prefetchRange = NSMakeRange(0, 0);
-        _prefetchIndexItems = nil;
-    }
-}
-
-- (UIView *)prefetchInvisibleItemAtIndex:(NSInteger)index {
-    id prefetchItem = [_prefetchIndexItems objectForKey:@(index)];
-    if (!prefetchItem) {
-        prefetchItem = [_visibleIndexItems objectForKey:@(index)];
-    }
-    if (!prefetchItem) {
-        prefetchItem = [self cacheItemForKey:@(index)];
-    }
-    if (!prefetchItem) {
-        prefetchItem = [_dataSource pagerViewLayout:self itemForIndex:index prefetching:YES];
-        UIView *view = [self viewForItem:prefetchItem atIndex:index];
-        CGRect frame = [self frameForItemAtIndex:index];
-        if (!CGRectEqualToRect(view.frame, frame)) {
-            view.frame = frame;
-        }
-        if (_prefetchItemWillAddToSuperView && view.superview != _scrollView) {
-            [_scrollView addSubview:view];
+-(void)loadAllController{
+    NSMutableDictionary *items = [NSMutableDictionary dictionary];
+    for (NSInteger idx = 0 ; idx < _countOfPagerItems; ++idx) {
+        UIViewController *indexItem = [_dataSource pagerViewLayout:self itemForIndex:idx prefetching:NO];
+        if (indexItem) {
+            items[@(idx)] = indexItem;
         }
     }
-    return prefetchItem;
+    if (items.count > 0) {
+        _allItems = [items copy];
+    }
 }
 
 #pragma mark - caculate index
@@ -686,53 +480,78 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     return _delegateFlags.transitionFromIndexToIndexProgress && _progressAnimateEnabel && !_isTapScrollMoved;
 }
 
-#pragma mark - memoryCache
-
-- (void)clearMemoryCache {
-    if (_autoMemoryCache && _memoryCache) {
-        [_memoryCache removeAllObjects];
-    }
-}
-
-- (void)cacheItem:(id)item forKey:(NSNumber *)key {
-    if (_autoMemoryCache && key) {
-        UIView *cacheItem = [self.memoryCache objectForKey:key];
-        if (cacheItem && cacheItem == item) {
-            return;
-        }
-        [self.memoryCache setObject:item forKey:key];
-    }
-}
-
-- (id)cacheItemForKey:(NSNumber *)key {
-    if (_autoMemoryCache && _memoryCache && key) {
-        return [_memoryCache objectForKey:key];
-    }
-    return nil;
-}
-
 #pragma mark - UIScrollViewDelegate
 
+- (NSInteger) pageIndexByAdding:(NSInteger) offset from:(NSInteger) index {
+    // Complicated stuff with negative modulo
+    while (offset<0) offset += _countOfPagerItems;
+    return (_countOfPagerItems+index+offset) % _countOfPagerItems;
+    
+}
+- (UIViewController *) loadControllerAtIndex:(NSInteger) index andPlaceAtIndex:(NSInteger) destIndex {
+    if (_scrollView.subviews.count > 3){
+        for(id child in [_scrollView subviews]){
+            [child removeFromSuperview];
+        }
+    }
+    NSNumber *idx = @(index);
+    UIViewController *viewController = [_allItems objectForKey:idx];
+    viewController.view.tag = 0;
+    
+    CGRect viewFrame = CGRectMake(0, 0, _scrollView.frame.size.width, _scrollView.frame.size.height);
+    int offset = 2;
+    viewFrame = CGRectOffset(viewFrame, _scrollView.frame.size.width * (destIndex + offset), 0);
+    viewController.view.frame = viewFrame;
+    
+    [_scrollView addSubview:viewController.view];
+    return viewController;
+}
+- (void) removeControllerInScrollView {
+    if (_scrollView.subviews.count > 0){
+        for(id child in [_scrollView subviews]){
+            [child removeFromSuperview];
+        }
+    }
+}
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
-    if (!scrollView.superview) {
-        return;
-    }
-    // get scrolling direction
-    CGFloat offsetX = scrollView.contentOffset.x;
-    TYPagerScrollingDirection direction = offsetX >= _preOffsetX ? TYPagerScrollingLeft : TYPagerScrollingRight;
-    
-    // caculate index and progress
-    if ([self progressCaculateEnable]) {
-        [self caculateIndexByProgressWithOffsetX:offsetX direction:direction];
-    }
-    [self caculateIndexWithOffsetX:offsetX direction:direction];
-    
-    // layout items
-    [self layoutIfNeed];
-    _isTapScrollMoved = NO;
-    
-    if (_delegateFlags.pagerViewLayoutDidScroll) {
-        [_delegate pagerViewLayoutDidScroll:self];
+    if(_countOfPagerItems>0){
+        if (!scrollView.superview) {
+            return;
+        }
+        // get scrolling direction
+        CGFloat offsetX = scrollView.contentOffset.x;
+        TYPagerScrollingDirection direction = offsetX >= _preOffsetX ? TYPagerScrollingLeft : TYPagerScrollingRight;
+        
+        CGFloat size = _scrollView.frame.size.width;
+
+        _scrollView.bounces = YES;
+        
+        NSInteger newPageIndex = _curIndex;
+        
+        if (offsetX <= size)
+            newPageIndex = [self pageIndexByAdding:-1 from:_curIndex];
+        else if (offsetX >= (size*3)){
+            if(offsetX == (size * 3)){
+                newPageIndex = [self pageIndexByAdding:+1 from:_curIndex];
+            }else{
+                CGFloat selectedIndex = offsetX/size;
+                newPageIndex = [self pageIndexByAdding: selectedIndex - 1 from:0];
+            }
+        }
+
+        // layout items
+        [self layoutIfNeed:newPageIndex];
+        _isTapScrollMoved = NO;
+        
+        // caculate index and progress
+//        if ([self progressCaculateEnable]) {
+//            [self caculateIndexByProgressWithOffsetX:offsetX direction:direction];
+//        }
+//        [self caculateIndexWithOffsetX:offsetX direction:direction];
+        
+        if (_delegateFlags.pagerViewLayoutDidScroll) {
+            [_delegate pagerViewLayoutDidScroll:self];
+        }
     }
 }
 
@@ -785,27 +604,7 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
 
 #pragma mark - Observer
 
-- (void)addScrollViewObservers {
-    [self addObserver:self forKeyPath:kScrollViewFrameObserverKey options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
-}
-
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
-    if ([keyPath isEqualToString:kScrollViewFrameObserverKey]) {
-        CGRect newFrame = [[change objectForKey:NSKeyValueChangeNewKey]CGRectValue];
-        CGRect oldFrame = [[change objectForKey:NSKeyValueChangeOldKey]CGRectValue];
-        BOOL needLayoutContent = !CGRectEqualToRect(newFrame, oldFrame);
-        if (needLayoutContent) {
-            [self setNeedLayout];
-        }
-    }
-}
-
-- (void)removeScrollViewObservers {
-    [self removeObserver:self forKeyPath:kScrollViewFrameObserverKey context:nil];
-}
-
 - (void)dealloc {
-    [self removeScrollViewObservers];
     _scrollView.delegate = nil;
     _scrollView = nil;
     if (_reuseIdentifyItems) {
@@ -814,7 +613,6 @@ static NSString * kScrollViewFrameObserverKey = @"scrollView.frame";
     if (_reuseIdentifyClassOrNib) {
         [_reuseIdentifyClassOrNib removeAllObjects];
     }
-    [self clearMemoryCache];
 }
 
 @end
